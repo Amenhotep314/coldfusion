@@ -1,20 +1,30 @@
-pub struct TemplateApp {
+//! The module responsible for building the flat UI
+//!
+
+
+/// All variables that the flat UI should keep track of between draws
+pub struct GUI {
+    /// This is a test string
     label: String,
+    /// This is a test float
     value: f32,
 }
 
-impl Default for TemplateApp {
+impl Default for GUI {
+
+    /// Constructor for the `GUI` struct that initializes it with default
+    /// values
     fn default() -> Self {
         Self {
-            // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
         }
     }
 }
 
-impl TemplateApp {
-    /// Called once before the first frame.
+impl GUI {
+
+    /// Constructor called once before the first frame
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
@@ -22,11 +32,13 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
-    /// Called each time the UI needs repainting, which may be many times per second.
+impl eframe::App for GUI {
+    /// Called each time the UI needs repainting, which may be many times per
+    /// second.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
+        // Put your widgets into a `SidePanel`, `TopBottomPanel`,
+        // `CentralPanel`, `Window` or `Area`. For inspiration and more
+        // examples, go to https://emilk.github.io/egui
 
         egui::Panel::top("top_panel").show_inside(ui, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -36,7 +48,8 @@ impl eframe::App for TemplateApp {
         });
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
+            // The central panel the region left after adding TopPanels and
+            // SidePanels
             ui.heading("eframe template");
 
             ui.horizontal(|ui| {
@@ -64,6 +77,11 @@ impl eframe::App for TemplateApp {
     }
 }
 
+
+/// Adds stuff to the UI when called each frame
+///
+/// # Arguments
+/// * `ui` - A mutable reference to the UI that is modified in place
 fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
