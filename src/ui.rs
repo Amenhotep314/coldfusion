@@ -1,5 +1,4 @@
 //! The module responsible for building the flat UI
-//!
 
 
 /// All variables that the flat UI should keep track of between draws
@@ -25,7 +24,7 @@ impl Default for GUI {
 impl GUI {
 
     /// Constructor called once before the first frame
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
         Default::default()
@@ -40,14 +39,14 @@ impl eframe::App for GUI {
         // `CentralPanel`, `Window` or `Area`. For inspiration and more
         // examples, go to https://emilk.github.io/egui
 
-        egui::Panel::top("top_panel").show_inside(ui, |ui| {
+        egui::Panel::top("top_panel").show(ui, |ui| {
             // The top panel is often a good place for a menu bar:
             egui::MenuBar::new().ui(ui, |ui| {
                 egui::widgets::global_theme_preference_buttons(ui);
             });
         });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             // The central panel the region left after adding TopPanels and
             // SidePanels
             ui.heading("eframe template");

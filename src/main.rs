@@ -21,6 +21,7 @@ fn main() -> eframe::Result {
             .with_inner_size([400.0, 300.0])
             .with_min_inner_size([300.0, 220.0])
             .with_icon(
+
                 // TODO: Create a custom icon for the project and replace this
                 eframe::icon_data::from_png_bytes(
                     &include_bytes!("../assets/favicon-512x512.png")[..],
