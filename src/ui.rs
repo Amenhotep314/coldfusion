@@ -4,7 +4,7 @@
 use std::sync::Arc;
 use eframe::egui_wgpu;
 use eframe::wgpu;
-use crate::renderer::Renderer;
+use crate::renderer::renderer::Renderer;
 
 
 /// All variables that the flat UI should keep track of between draws
