@@ -6,6 +6,7 @@
 
 
 mod ui;
+mod renderer;
 
 
 /// The main function

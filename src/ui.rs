@@ -1,23 +1,34 @@
 //! The module responsible for building the flat UI
 
 
+use std::sync::Arc;
+use eframe::egui_wgpu;
+use eframe::wgpu;
+use crate::renderer::Renderer;
+
+
 /// All variables that the flat UI should keep track of between draws
 pub struct GUI {
-    /// This is a test string
-    label: String,
-    /// This is a test float
-    value: f32,
+    renderer: Arc<Renderer>
 }
+
+/// A struct to hold all of the stuff that needs to get passed to the renderer
+/// every frame.
+struct ViewportCallback {
+    /// The renderer, wrapped in an Arc to prevent it from going out of scope
+    /// when the GPU multithreads
+    renderer: Arc<Renderer>
+    // Camera and stuff that needs to get passed to the renderer eventually
+    // goes here.
+}
+
 
 impl Default for GUI {
 
     /// Constructor for the `GUI` struct that initializes it with default
     /// values
     fn default() -> Self {
-        Self {
-            label: "Hello World!".to_owned(),
-            value: 2.7,
-        }
+        Self { renderer: Renderer::new().into() }
     }
 }
 
@@ -39,6 +50,7 @@ impl eframe::App for GUI {
         // `CentralPanel`, `Window` or `Area`. For inspiration and more
         // examples, go to https://emilk.github.io/egui
 
+        // Draw the top bar
         egui::Panel::top("top_panel").show(ui, |ui| {
             // The top panel is often a good place for a menu bar:
             egui::MenuBar::new().ui(ui, |ui| {
@@ -47,50 +59,39 @@ impl eframe::App for GUI {
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
-            // The central panel the region left after adding TopPanels and
-            // SidePanels
-            ui.heading("eframe template");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
+            // Draw the tool menu
+            ui.heading("Tools");
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
-
+            ui.horizontal(|ui| {});
             ui.separator();
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
+            // Call the 3D renderer
+            let (response, painter) = ui.allocate_painter(
+                ui.available_size(), egui::Sense::drag()
+            );
+            let rect = response.rect;
+
+            painter.add(
+                egui_wgpu::Callback::new_paint_callback(
+                    rect, ViewportCallback { renderer: self.renderer.clone() }
+                )
+            );
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
                 egui::warn_if_debug_build(ui);
             });
         });
     }
 }
 
-
-/// Adds stuff to the UI when called each frame
-///
-/// # Arguments
-/// * `ui` - A mutable reference to the UI that is modified in place
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
+impl egui_wgpu::CallbackTrait for ViewportCallback {
+    fn paint(
+        &self,
+        info: egui::PaintCallbackInfo,
+        render_pass: &mut wgpu::RenderPass<'static>,
+        _resources: &egui_wgpu::CallbackResources,
+    ) {
+        self.renderer.render();
+    }
 }
