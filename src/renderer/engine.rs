@@ -31,6 +31,8 @@ pub struct Renderer {
 struct Vertex {
     /// A 3-tuple of float containing the position of the vertex
     position: [f32; 3],
+    /// The normal vector to the relevant triangle.
+    normal: [f32; 3],
 }
 
 /// A struct to hold all of the stuff that needs to get passed to the renderer
@@ -146,7 +148,7 @@ impl Renderer {
 
 impl Vertex {
     const ATTRIBS: &[wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0 => Float32x3
+        0 => Float32x3, 1 => Float32x3,
     ];
 
     fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -171,29 +173,33 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
 
 impl GPUMesh {
     fn new(stl: stl_io::IndexedMesh) -> Self {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
 
-        let vertices: Vec<Vertex> = stl
-            .vertices
-            .iter()
-            .map(|v| Vertex {
-                position: [v[0]*0.01, v[1]*0.01, v[2]*0.01],
-            })
-            .collect();
+        for face in &stl.faces {
+            let base = vertices.len() as u32;
 
-        let indices: Vec<u32> = stl
-            .faces
-            .iter()
-            .flat_map(|face| {
-                face.vertices
-                    .iter()
-                    .map(|&i| i as u32)
-            })
-            .collect();
+            for &i in &face.vertices {
+                let v = stl.vertices[i];
 
-        let num_indices: u32 = u32::try_from(indices.len())
-            .expect("Slice too large for u32");
+                vertices.push(Vertex {
+                    position: [v[0], v[1], v[2]],
+                    normal: [
+                        face.normal[0],
+                        face.normal[1],
+                        face.normal[2],
+                    ],
+                });
+            }
 
-        println!("{}", num_indices);
+            indices.extend([
+                base,
+                base + 1,
+                base + 2,
+            ]);
+        }
+
+        let num_indices: u32 = indices.len() as u32;
 
         Self {
             vertices: vertices,
