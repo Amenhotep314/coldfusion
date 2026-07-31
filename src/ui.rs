@@ -4,22 +4,12 @@
 use std::sync::Arc;
 use eframe::egui_wgpu;
 use eframe::wgpu;
-use crate::renderer::renderer::Renderer;
+use crate::renderer::renderer::{Renderer, ViewportCallback};
 
 
 /// All variables that the flat UI should keep track of between draws
 pub struct GUI {
     renderer: Arc<Renderer>
-}
-
-/// A struct to hold all of the stuff that needs to get passed to the renderer
-/// every frame.
-struct ViewportCallback {
-    /// The renderer, wrapped in an Arc to prevent it from going out of scope
-    /// when the GPU multithreads
-    renderer: Arc<Renderer>
-    // Camera and stuff that needs to get passed to the renderer eventually
-    // goes here.
 }
 
 
@@ -82,13 +72,3 @@ impl eframe::App for GUI {
     }
 }
 
-impl egui_wgpu::CallbackTrait for ViewportCallback {
-    fn paint(
-        &self,
-        info: egui::PaintCallbackInfo,
-        render_pass: &mut wgpu::RenderPass<'static>,
-        _resources: &egui_wgpu::CallbackResources,
-    ) {
-        self.renderer.render(render_pass);
-    }
-}

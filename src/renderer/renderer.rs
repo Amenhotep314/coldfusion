@@ -3,6 +3,7 @@
 
 
 use std::f32::consts::PI;
+use std::sync::Arc;
 use eframe::egui_wgpu;
 use eframe::wgpu;
 use eframe::wgpu::util::DeviceExt;
@@ -16,20 +17,20 @@ pub struct Renderer {
     vertex_buffer: wgpu::Buffer,
 }
 
-/// A struct to encapsulate camera data
-pub struct Camera {
-    /// The angle of the camera about the z-axis from the +x-axis in radians
-    yaw: f32,
-    /// The angle of the camera about the xy-plane from the +z-axis
-    pitch: f32,
-    /// The distance of the camera from the origin in mm
-    distance: f32,
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 3],
+}
+
+/// A struct to hold all of the stuff that needs to get passed to the renderer
+/// every frame.
+pub struct ViewportCallback {
+    /// The renderer, wrapped in an Arc to prevent it from going out of scope
+    /// when the GPU multithreads
+    pub renderer: Arc<Renderer>
+    // Camera and stuff that needs to get passed to the renderer eventually
+    // goes here.
 }
 
 
@@ -117,14 +118,6 @@ impl Renderer {
     }
 }
 
-impl Default for Camera {
-
-    /// Default camera constructor
-    fn default() -> Self {
-        Self { yaw: 0.0, pitch: 3.0 * PI / 4.0, distance: 1000.0}
-    }
-}
-
 impl Vertex {
     const ATTRIBS: &[wgpu::VertexAttribute] =
         &wgpu::vertex_attr_array![
@@ -137,5 +130,16 @@ impl Vertex {
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: Self::ATTRIBS,
         }
+    }
+}
+
+impl egui_wgpu::CallbackTrait for ViewportCallback {
+    fn paint(
+        &self,
+        info: egui::PaintCallbackInfo,
+        render_pass: &mut wgpu::RenderPass<'static>,
+        _resources: &egui_wgpu::CallbackResources,
+    ) {
+        self.renderer.render(render_pass);
     }
 }
