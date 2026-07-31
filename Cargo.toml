@@ -14,6 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 egui = "0.35.0"
 eframe = { version = "0.35.0", features = ["persistence"] }
+bytemuck = { version = "1.16", features = ["derive"] }
 log = "0.4.27"
 
 # native:

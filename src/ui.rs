@@ -23,22 +23,19 @@ struct ViewportCallback {
 }
 
 
-impl Default for GUI {
-
-    /// Constructor for the `GUI` struct that initializes it with default
-    /// values
-    fn default() -> Self {
-        Self { renderer: Renderer::new().into() }
-    }
-}
-
 impl GUI {
 
     /// Constructor called once before the first frame
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-        Default::default()
+        let render_state = cc.wgpu_render_state.as_ref().expect("couldn't start wgpu");
+        let renderer = Renderer::new(
+            &render_state.device,
+            render_state.target_format,
+        );
+
+        Self{ renderer: Arc::new(renderer) }
     }
 }
 
@@ -92,6 +89,6 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         render_pass: &mut wgpu::RenderPass<'static>,
         _resources: &egui_wgpu::CallbackResources,
     ) {
-        self.renderer.render();
+        self.renderer.render(render_pass);
     }
 }

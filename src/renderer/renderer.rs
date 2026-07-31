@@ -4,13 +4,16 @@
 
 use std::f32::consts::PI;
 use eframe::egui_wgpu;
+use eframe::wgpu;
+use eframe::wgpu::util::DeviceExt;
 
 
 // TODO: Set up the camera to roll and translate, not just pitch and yaw
 
 /// A placeholder struct to be called by the render callback in the UI logic
 pub struct Renderer {
-    pipeline: i32
+    pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
 }
 
 /// A struct to encapsulate camera data
@@ -23,19 +26,95 @@ pub struct Camera {
     distance: f32,
 }
 
-
-impl Default for Renderer {
-    fn default() -> Self {
-        Self { pipeline: 1 }
-    }
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
 }
 
+
+const TRIANGLE: &[Vertex] = &[
+    Vertex {
+        position: [0.0, 0.5, 0.0],
+    },
+    Vertex {
+        position: [-0.5, -0.5, 0.0],
+    },
+    Vertex {
+        position: [0.5, -0.5, 0.0],
+    },
+];
+
+
 impl Renderer {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("triangle vertices"),
+                contents: bytemuck::cast_slice(TRIANGLE),
+                usage: wgpu::BufferUsages::VERTEX,
+            },
+        );
+
+        let shader = device.create_shader_module(
+            wgpu::ShaderModuleDescriptor {
+                label: Some("Triangle Shader"),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("shader.wgsl").into(),
+                ),
+            },
+        );
+
+        let pipeline = device.create_render_pipeline(
+            &wgpu::RenderPipelineDescriptor {
+                label: Some("triangle pipeline"),
+
+                layout: None,
+
+                vertex: wgpu::VertexState{
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    buffers: &[Vertex::layout()],
+                    compilation_options: Default::default(),
+                },
+
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(
+                        wgpu::ColorTargetState {
+                            format,
+                            blend: Some(wgpu::BlendState::REPLACE),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        }
+                    )],
+                    compilation_options: Default::default(),
+                }),
+
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    ..Default::default()
+                },
+
+                depth_stencil: None,
+
+                multisample: wgpu::MultisampleState::default(),
+
+                multiview_mask: None,
+
+                cache: None,
+            }
+        );
+
+        Self { vertex_buffer: vertex_buffer, pipeline: pipeline }
     }
 
-    pub fn render(&self) {}
+    pub fn render(&self, pass: &mut wgpu::RenderPass<'_>) {
+        pass.set_pipeline(&self.pipeline);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.draw(0..3, 0..1);
+    }
 }
 
 impl Default for Camera {
@@ -46,3 +125,17 @@ impl Default for Camera {
     }
 }
 
+impl Vertex {
+    const ATTRIBS: &[wgpu::VertexAttribute] =
+        &wgpu::vertex_attr_array![
+            0 => Float32x3
+        ];
+
+    fn layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as u64,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: Self::ATTRIBS,
+        }
+    }
+}
