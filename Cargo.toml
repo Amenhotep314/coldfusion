@@ -15,6 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 egui = "0.35.0"
 eframe = { version = "0.35.0", features = ["persistence"] }
 bytemuck = { version = "1.16", features = ["derive"] }
+stl_io = "0.11.0"
 log = "0.4.27"
 
 # native:

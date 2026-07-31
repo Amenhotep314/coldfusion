@@ -1,5 +1,7 @@
-//! Module to keep track of camera movements and handle matrix math to 
+//! Module to keep track of camera movements and handle matrix math to
 //! rasterize from the correct angle.
+
+use std::f32::consts::PI;
 
 /// A struct to encapsulate camera data
 pub struct Camera {
@@ -11,11 +13,13 @@ pub struct Camera {
     distance: f32,
 }
 
-
 impl Default for Camera {
-
     /// Default camera constructor
     fn default() -> Self {
-        Self { yaw: 0.0, pitch: 3.0 * PI / 4.0, distance: 1000.0}
+        Self {
+            yaw: 0.0,
+            pitch: 3.0 * PI / 4.0,
+            distance: 1000.0,
+        }
     }
 }

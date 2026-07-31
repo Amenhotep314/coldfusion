@@ -1,37 +1,52 @@
 //! The module responsible for building the flat UI
 
-
-use std::sync::Arc;
+use crate::renderer::engine::{Renderer, ViewportCallback};
 use eframe::egui_wgpu;
-use eframe::wgpu;
-use crate::renderer::renderer::{Renderer, ViewportCallback};
-
+use std::sync::Arc;
 
 /// All variables that the flat UI should keep track of between draws
 pub struct GUI {
-    renderer: Arc<Renderer>
+    /// The renderer object, wrapped in this Arc<> notation so that it stays in
+    /// scope here, even if the GPU multithreads. The heavy object is always
+    /// here, and numbered references to it get passed around. I think??
+    renderer: Arc<Renderer>,
 }
 
-
 impl GUI {
-
     /// Constructor called once before the first frame
+    ///
+    /// # Arguments
+    /// * `cc` - Creation context for egui, contains lots of low-level stuff
+    ///   related to window creation. We use it here to get a reference to the
+    ///   GPU object so that we can pass it to the rendering engine later.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-        let render_state = cc.wgpu_render_state.as_ref().expect("couldn't start wgpu");
-        let renderer = Renderer::new(
-            &render_state.device,
-            render_state.target_format,
-        );
 
-        Self{ renderer: Arc::new(renderer) }
+        // And here we go, getting the GPU object
+        let render_state = cc.wgpu_render_state.as_ref().expect("couldn't start wgpu");
+        let renderer = Renderer::new(&render_state.device, render_state.target_format);
+
+        Self {
+            renderer: Arc::new(renderer),
+        }
     }
 }
 
+// Implementing the App trait for the GUI struct. In order for eframe to
+// consider our GUI struct a proper app, it must implement certain methods,
+// kind of like an interface or abstract class.
 impl eframe::App for GUI {
+    /// UI update function.
+    ///
     /// Called each time the UI needs repainting, which may be many times per
     /// second.
+    ///
+    /// # Arguments
+    /// * `ui` - A mutable pointer to the ui struct from eframe, mutable
+    ///   because we design the UI every frame by calling functions that modify
+    ///   its state in place.
+    /// * `frame` - Passed by eframe, not sure what this is used for.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`,
         // `CentralPanel`, `Window` or `Area`. For inspiration and more
@@ -46,7 +61,6 @@ impl eframe::App for GUI {
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
-
             // Draw the tool menu
             ui.heading("Tools");
 
@@ -54,16 +68,15 @@ impl eframe::App for GUI {
             ui.separator();
 
             // Call the 3D renderer
-            let (response, painter) = ui.allocate_painter(
-                ui.available_size(), egui::Sense::drag()
-            );
+            let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
             let rect = response.rect;
 
-            painter.add(
-                egui_wgpu::Callback::new_paint_callback(
-                    rect, ViewportCallback { renderer: self.renderer.clone() }
-                )
-            );
+            painter.add(egui_wgpu::Callback::new_paint_callback(
+                rect,
+                ViewportCallback {
+                    renderer: self.renderer.clone(),
+                },
+            ));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
@@ -71,4 +84,3 @@ impl eframe::App for GUI {
         });
     }
 }
-
