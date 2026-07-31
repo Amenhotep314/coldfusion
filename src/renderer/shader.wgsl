@@ -19,24 +19,28 @@ fn vs_main(@location(0) position: vec3<f32>,
 }
 
 @fragment
-fn fs_main(
-    @location(0) normal: vec3<f32>
-)
--> @location(0) vec4<f32>
+fn fs_main(@location(0) normal: vec3<f32>) -> @location(0) vec4<f32>
 {
-    let light_direction = normalize(
-        vec3<f32>(1.0, 1.0, 1.0)
-    );
+  let light_direction = normalize(
+      vec3<f32>(1.0, 1.0, 1.0)
+  );
+  let ambient = 0.2;
+  let material_color = vec3<f32>(
+      1.0,
+      0.0,
+      0.0
+  );
 
-    let brightness = max(
-        dot(normalize(normal), light_direction),
-        0.0
-    );
+  let brightness = max(
+      dot(normalize(normal), light_direction),
+      0.0
+  );
 
-    return vec4<f32>(
-        brightness,
-        brightness,
-        brightness,
-        1.0
-    );
+  let lighting =
+      ambient + brightness * 0.8;
+
+  return vec4<f32>(
+      material_color * lighting,
+      1.0
+  );
 }
