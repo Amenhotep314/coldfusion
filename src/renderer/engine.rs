@@ -6,6 +6,7 @@ use eframe::wgpu;
 use eframe::wgpu::util::DeviceExt;
 use std::sync::Arc;
 use crate::stl;
+use crate::renderer::camera::{Camera, GPUCamera};
 
 /// A struct containing everything that the renderer needs to draw triangles to
 /// the viewport.
@@ -18,6 +19,9 @@ pub struct Renderer {
     vertex_buffer: wgpu::Buffer,
     /// The index buffer, to keep track of where the triangles are
     index_buffer: wgpu::Buffer,
+    /// The camera transform matrix
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
     /// The number of indices
     num_indices: u32,
 }
@@ -64,6 +68,8 @@ impl Renderer {
     /// An instance of Renderer
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
 
+        let gpu_camera = GPUCamera{ view_proj: glam::Mat4::IDENTITY.to_cols_array_2d() };
+
         let indexed_mesh: stl_io::IndexedMesh = stl::load_stl_to_buffer("assets/stanford_bunny.stl")
             .expect("couldn't load STL");
         let gpu_mesh: GPUMesh = GPUMesh::new(indexed_mesh);
@@ -79,16 +85,50 @@ impl Renderer {
             contents: bytemuck::cast_slice(&gpu_mesh.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
+        let camera_buffer = device.create_buffer_init( &wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Uniform"),
+            contents: bytemuck::bytes_of(&gpu_camera.view_proj),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("camera bind group layout"),
 
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+
+                count: None,
+            }],
+        });
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("camera bind group"),
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Triangle Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("triangle pipeline layout"),
+            bind_group_layouts: &[
+                Some(&camera_bind_group_layout),
+            ],
+            immediate_size: 0,
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("triangle pipeline"),
 
-            layout: None,
+            layout: Some(&pipeline_layout),
 
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -125,6 +165,8 @@ impl Renderer {
         Self {
             vertex_buffer: vertex_buffer,
             index_buffer: index_buffer,
+            camera_buffer: camera_buffer,
+            camera_bind_group: camera_bind_group,
             num_indices: gpu_mesh.num_indices,
             pipeline: pipeline,
         }
@@ -132,6 +174,11 @@ impl Renderer {
 
     fn render(&self, pass: &mut wgpu::RenderPass<'_>) {
         pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(
+            0,
+            &self.camera_bind_group,
+            &[],
+        );
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(
             self.index_buffer.slice(..),

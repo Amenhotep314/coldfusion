@@ -1,6 +1,7 @@
 //! The module responsible for building the flat UI
 
 use crate::renderer::engine::{Renderer, ViewportCallback};
+use crate::renderer::camera::{Camera, GPUCamera};
 use eframe::egui_wgpu;
 use std::sync::Arc;
 
@@ -10,6 +11,7 @@ pub struct GUI {
     /// scope here, even if the GPU multithreads. The heavy object is always
     /// here, and numbered references to it get passed around. I think??
     renderer: Arc<Renderer>,
+    camera: Arc<Camera>
 }
 
 impl GUI {
@@ -25,10 +27,14 @@ impl GUI {
 
         // And here we go, getting the GPU object
         let render_state = cc.wgpu_render_state.as_ref().expect("couldn't start wgpu");
-        let renderer = Renderer::new(&render_state.device, render_state.target_format);
+        let renderer = Renderer::new(
+            &render_state.device,
+            render_state.target_format,
+        );
 
         Self {
             renderer: Arc::new(renderer),
+            camera: Arc::new(Camera::new())
         }
     }
 }
@@ -51,6 +57,9 @@ impl eframe::App for GUI {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`,
         // `CentralPanel`, `Window` or `Area`. For inspiration and more
         // examples, go to https://emilk.github.io/egui
+
+        // Update the camera
+        self.camera.update_camera();
 
         // Draw the top bar
         egui::Panel::top("top_panel").show(ui, |ui| {
