@@ -24,6 +24,7 @@ pub struct Renderer {
     camera_bind_group: wgpu::BindGroup,
     /// The number of indices
     num_indices: u32,
+    queue: wgpu::Queue,
 }
 
 /// A struct containing a single vertex of a triangle in 3D.
@@ -66,12 +67,13 @@ impl Renderer {
     ///
     /// # Returns
     /// An instance of Renderer
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
 
         let gpu_camera = GPUCamera{ view_proj: glam::Mat4::IDENTITY.to_cols_array_2d() };
 
         let indexed_mesh: stl_io::IndexedMesh = stl::load_stl_to_buffer("assets/stanford_bunny.stl")
             .expect("couldn't load STL");
+
         let gpu_mesh: GPUMesh = GPUMesh::new(indexed_mesh);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -169,6 +171,7 @@ impl Renderer {
             camera_bind_group: camera_bind_group,
             num_indices: gpu_mesh.num_indices,
             pipeline: pipeline,
+            queue: queue,
         }
     }
 
@@ -190,6 +193,18 @@ impl Renderer {
             0,
             0..1,
         );
+    }
+
+
+    pub fn push_camera_to_gpu(&self, camera: &Camera, aspect: f32) {
+        let gpu_camera = camera.to_gpu(aspect);
+
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&gpu_camera),
+        );
+
     }
 }
 

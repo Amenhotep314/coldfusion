@@ -29,9 +29,9 @@ impl Default for Camera {
         Self {
             yaw: 0.0,
             pitch: PI / 2.0,
-            distance: 100.0,
-            target: glam::Vec3::ZERO,
-            zoom: 1.0
+            distance: 1000.0,
+            target: glam::Vec3::new(30.0, 2.0, 59.0),
+            zoom: 100.0
         }
     }
 }
@@ -68,12 +68,13 @@ impl Camera {
             -half_height,
              half_height,
              0.1,      // near plane
-             1000.0,   // far plane
+             10000.0,   // far plane
         )
     }
 
     pub fn to_gpu(&self, aspect: f32) -> GPUCamera {
-        let view_proj = self.view_matrix() * self.projection_matrix(aspect);
+        let view_proj = self.projection_matrix(aspect) * self.view_matrix(); 
+
         GPUCamera { view_proj: view_proj.to_cols_array_2d() }
     }
 

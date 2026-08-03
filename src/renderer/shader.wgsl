@@ -14,12 +14,13 @@ struct Camera {
 var<uniform> camera : Camera;
 
 @vertex
-fn vs_main(@location(0) position: vec3<f32>,
-  @location(1) normal: vec3<f32>,
+fn vs_main(
+  @location(0) position: vec3<f32>, @location(1) normal: vec3<f32>,
 ) -> VertexOutput {
 
   var out: VertexOutput;
   out.position = camera.view_proj * vec4<f32>(position, 1.0);
+
   out.normal = normal;
   return out;
 }

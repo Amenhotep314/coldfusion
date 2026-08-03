@@ -29,6 +29,7 @@ impl GUI {
         let render_state = cc.wgpu_render_state.as_ref().expect("couldn't start wgpu");
         let renderer = Renderer::new(
             &render_state.device,
+            render_state.queue.clone(),
             render_state.target_format,
         );
 
@@ -58,8 +59,6 @@ impl eframe::App for GUI {
         // `CentralPanel`, `Window` or `Area`. For inspiration and more
         // examples, go to https://emilk.github.io/egui
 
-        // Update the camera
-        self.camera.update_camera();
 
         // Draw the top bar
         egui::Panel::top("top_panel").show(ui, |ui| {
@@ -76,12 +75,16 @@ impl eframe::App for GUI {
             ui.horizontal(|ui| {});
             ui.separator();
 
-            // Call the 3D renderer
             let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
-            let rect = response.rect;
+            let aspect = response.rect.width() / response.rect.height();
 
+            // Update the camera
+            self.camera.update_camera();
+            self.renderer.push_camera_to_gpu(&self.camera, aspect);
+
+            // Call the 3D renderer
             painter.add(egui_wgpu::Callback::new_paint_callback(
-                rect,
+                response.rect,
                 ViewportCallback {
                     renderer: self.renderer.clone(),
                 },
