@@ -6,9 +6,9 @@
 // Rust doesn't care about the directory structure, so we have to build it
 // manually. These are either files at this level or directories at this level
 // containing `mod.rs` files with declarations for that directory.
+mod gui;
 mod renderer;
-mod stl;
-mod ui;
+mod util;
 
 /// The main function
 ///
@@ -42,6 +42,6 @@ fn main() -> eframe::Result {
         "ColdFusion",
         native_options,
         // This is the call to our ui
-        Box::new(|cc| Ok(Box::new(ui::GUI::new(cc)))),
+        Box::new(|cc| Ok(Box::new(gui::ui::GUI::new(cc)))),
     )
 }

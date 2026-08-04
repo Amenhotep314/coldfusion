@@ -5,7 +5,7 @@ use eframe::egui_wgpu;
 use eframe::wgpu;
 use eframe::wgpu::util::DeviceExt;
 use std::sync::Arc;
-use crate::stl;
+use crate::util::stl;
 use crate::renderer::camera::{Camera, GPUCamera};
 
 /// A struct containing everything that the renderer needs to draw triangles to

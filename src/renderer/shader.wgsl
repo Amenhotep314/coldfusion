@@ -29,7 +29,7 @@ fn vs_main(
 fn fs_main(@location(0) normal: vec3<f32>) -> @location(0) vec4<f32>
 {
   let light_direction = normalize(
-      vec3<f32>(1.0, 1.0, 1.0)
+      vec3<f32>(0.0, 0.0, 1.0)
   );
   let ambient = 0.2;
   let material_color = vec3<f32>(

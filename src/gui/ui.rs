@@ -4,6 +4,7 @@ use crate::renderer::engine::{Renderer, ViewportCallback};
 use crate::renderer::camera::{Camera, GPUCamera};
 use eframe::egui_wgpu;
 use std::sync::Arc;
+use std::time::Instant;
 
 /// All variables that the flat UI should keep track of between draws
 pub struct GUI {
@@ -11,7 +12,14 @@ pub struct GUI {
     /// scope here, even if the GPU multithreads. The heavy object is always
     /// here, and numbered references to it get passed around. I think??
     renderer: Arc<Renderer>,
-    camera: Camera
+    camera: Camera,
+    stats: PerformanceStats,
+}
+
+struct PerformanceStats {
+    fps: f32,
+    start_time: Instant,
+    frame_count: f32
 }
 
 impl GUI {
@@ -35,7 +43,12 @@ impl GUI {
 
         Self {
             renderer: Arc::new(renderer),
-            camera: Camera::new()
+            camera: Camera::new(),
+            stats: PerformanceStats {
+                fps: 0.0,
+                start_time: Instant::now(),
+                frame_count: 0.0
+            }
         }
     }
 }
@@ -59,6 +72,14 @@ impl eframe::App for GUI {
         // `CentralPanel`, `Window` or `Area`. For inspiration and more
         // examples, go to https://emilk.github.io/egui
 
+        // Compute framerate
+        self.stats.frame_count += 1.0;
+        let dt = (Instant::now() - self.stats.start_time).as_secs_f32();
+        if dt >= 0.1 {
+            self.stats.fps = self.stats.frame_count / dt;
+            self.stats.frame_count = 0.0;
+            self.stats.start_time = Instant::now();
+        }
 
         // Draw the top bar
         egui::Panel::top("top_panel").show(ui, |ui| {
@@ -100,7 +121,12 @@ impl eframe::App for GUI {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
+                ui.label(format!(
+                    "FPS: {:.0}",
+                    self.stats.fps,
+                ));
             });
         });
     }
 }
+
