@@ -83,7 +83,7 @@ impl eframe::App for GUI {
                 self.camera.update_camera(response.drag_delta());
             }
 
-            let scroll = ui.input(|i| i.raw_scroll_delta.y);
+            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
                 self.camera.scroll(scroll);
             }
