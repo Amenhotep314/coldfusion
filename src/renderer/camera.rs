@@ -54,7 +54,7 @@ impl Camera {
         glam::Mat4::look_at_rh(
             self.eye(),
             self.target,
-            glam::Vec3::Y
+            glam::Vec3::Z
         )
     }
 
@@ -78,5 +78,13 @@ impl Camera {
         GPUCamera { view_proj: view_proj.to_cols_array_2d() }
     }
 
-    pub fn update_camera(&self) {}
+    pub fn update_camera(&mut self, delta: egui::Vec2) {
+        self.yaw += delta.x * 0.01;
+        self.pitch += delta.y * 0.01;
+        self.pitch = self.pitch.clamp(0.01, PI - 0.01); 
+    }
+
+    pub fn scroll(&mut self, scroll: f32) {
+        self.zoom *= (1.0 - scroll * 0.001).max(0.1);
+    }
 }

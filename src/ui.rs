@@ -11,7 +11,7 @@ pub struct GUI {
     /// scope here, even if the GPU multithreads. The heavy object is always
     /// here, and numbered references to it get passed around. I think??
     renderer: Arc<Renderer>,
-    camera: Arc<Camera>
+    camera: Camera
 }
 
 impl GUI {
@@ -35,7 +35,7 @@ impl GUI {
 
         Self {
             renderer: Arc::new(renderer),
-            camera: Arc::new(Camera::new())
+            camera: Camera::new()
         }
     }
 }
@@ -79,7 +79,15 @@ impl eframe::App for GUI {
             let aspect = response.rect.width() / response.rect.height();
 
             // Update the camera
-            self.camera.update_camera();
+            if response.dragged() {
+                self.camera.update_camera(response.drag_delta());
+            }
+
+            let scroll = ui.input(|i| i.raw_scroll_delta.y);
+            if scroll != 0.0 {
+                self.camera.scroll(scroll);
+            }
+
             self.renderer.push_camera_to_gpu(&self.camera, aspect);
 
             // Call the 3D renderer
