@@ -51,7 +51,7 @@ impl Camera {
     }
 
     pub fn view_matrix(&self) -> glam::Mat4 {
-        glam::Mat4::look_at_rh(
+        glam::camera::rh::view::look_at_mat4(
             self.eye(),
             self.target,
             glam::Vec3::Z
@@ -62,7 +62,7 @@ impl Camera {
         let half_height = self.zoom;
         let half_width = self.zoom * aspect;
 
-        glam::Mat4::orthographic_rh(
+        glam::camera::rh::proj::directx::orthographic(
             -half_width,
              half_width,
             -half_height,

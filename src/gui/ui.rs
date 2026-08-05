@@ -1,7 +1,8 @@
 //! The module responsible for building the flat UI
 
 use crate::renderer::engine::{Renderer, ViewportCallback};
-use crate::renderer::camera::{Camera, GPUCamera};
+use crate::renderer::camera::Camera;
+use crate::gui::theme;
 use eframe::egui_wgpu;
 use std::sync::Arc;
 use std::time::Instant;
@@ -32,6 +33,7 @@ impl GUI {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+        theme::apply_theme(&cc.egui_ctx);
 
         // And here we go, getting the GPU object
         let render_state = cc.wgpu_render_state.as_ref().expect("couldn't start wgpu");
