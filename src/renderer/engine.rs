@@ -1,12 +1,12 @@
 //! This module is responsible for camera logic and WGPU rendering of STLs. It
 //! should take a mesh from the frame loop and return a drawn GUI layer.
 
+use crate::renderer::camera::{Camera, GPUCamera};
+use crate::util::stl;
 use eframe::egui_wgpu;
 use eframe::wgpu;
-use eframe::wgpu::util::DeviceExt;
+use eframe::wgpu::util::DeviceExt as _;
 use std::sync::Arc;
-use crate::util::stl;
-use crate::renderer::camera::{Camera, GPUCamera};
 
 /// A struct containing everything that the renderer needs to draw triangles to
 /// the viewport.
@@ -19,11 +19,15 @@ pub struct Renderer {
     vertex_buffer: wgpu::Buffer,
     /// The index buffer, to keep track of where the triangles are
     index_buffer: wgpu::Buffer,
-    /// The camera transform matrix
+    /// The camera buffer, where the transform matrix is written every frame
     camera_buffer: wgpu::Buffer,
+    /// Some kind of low-level thing to sync camera-related bytes between CPU
+    /// and GPU.
     camera_bind_group: wgpu::BindGroup,
     /// The number of indices
     num_indices: u32,
+    /// A queue of tasks for the GPU to complete sequentially. We use this
+    /// object to write new bytes to buffers
     queue: wgpu::Queue,
 }
 
@@ -46,14 +50,16 @@ pub struct ViewportCallback {
     /// The renderer, wrapped in an Arc to prevent it from going out of scope
     /// when the GPU multithreads
     pub renderer: Arc<Renderer>,
-    // Camera and stuff that needs to get passed to the renderer eventually
-    // goes here.
-
 }
 
+/// A struct to hold a mesh in basic form, not the custom struct that `stl_io`
+/// reads it in
 struct GPUMesh {
+    /// The vertices of the mesh
     vertices: Vec<Vertex>,
+    /// A mapping of vertex positions to triangles
     indices: Vec<u32>,
+    /// How many triangles do we have? Too many.
     num_indices: u32,
 }
 
@@ -62,20 +68,27 @@ impl Renderer {
     ///
     /// # Arguments
     /// * `device` - A pointer to the GPU, so that we can push triangles to it
+    /// * `queue` - An object to which we can push GPU tasks
     /// * `format` - I have no idea what this does, something to do with the
     ///   texture?
     ///
     /// # Returns
     /// An instance of Renderer
     pub fn new(device: &wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
+        // The buffer needs to contain something, but the window doesn't exist
+        // yet, so just write the identity
+        let gpu_camera = GPUCamera {
+            view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+        };
 
-        let gpu_camera = GPUCamera{ view_proj: glam::Mat4::IDENTITY.to_cols_array_2d() };
+        // TODO: Add a file picker dialogue to the UI to select a custom mesh
+        let indexed_mesh: stl_io::IndexedMesh =
+            stl::load_stl_to_buffer("assets/stanford_bunny.stl").expect("couldn't load STL");
 
-        let indexed_mesh: stl_io::IndexedMesh = stl::load_stl_to_buffer("assets/stanford_bunny.stl")
-            .expect("couldn't load STL");
+        let gpu_mesh = GPUMesh::new(&indexed_mesh);
 
-        let gpu_mesh: GPUMesh = GPUMesh::new(indexed_mesh);
-
+        // Create the buffers for writing vertices, indices, and camera
+        // matrices to the GPU
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("STL vertices"),
             contents: bytemuck::cast_slice(&gpu_mesh.vertices),
@@ -87,26 +100,29 @@ impl Renderer {
             contents: bytemuck::cast_slice(&gpu_mesh.indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        let camera_buffer = device.create_buffer_init( &wgpu::util::BufferInitDescriptor {
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Uniform"),
             contents: bytemuck::bytes_of(&gpu_camera.view_proj),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("camera bind group layout"),
 
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
+        // ChatGPT wrote this part and I am still figuring out how it works
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("camera bind group layout"),
 
-                count: None,
-            }],
-        });
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+
+                    count: None,
+                }],
+            });
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("camera bind group"),
             layout: &camera_bind_group_layout,
@@ -115,18 +131,21 @@ impl Renderer {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
+
+        // Load the shader file
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Triangle Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
+
+        // Create the pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("triangle pipeline layout"),
-            bind_group_layouts: &[
-                Some(&camera_bind_group_layout),
-            ],
+            bind_group_layouts: &[Some(&camera_bind_group_layout)],
             immediate_size: 0,
         });
 
+        // Map functions in the shader to render tasks?
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("triangle pipeline"),
 
@@ -155,6 +174,7 @@ impl Renderer {
                 ..Default::default()
             },
 
+            // This is where we do depth I believe
             depth_stencil: None,
 
             multisample: wgpu::MultisampleState::default(),
@@ -164,58 +184,63 @@ impl Renderer {
             cache: None,
         });
 
+        let num_indices = gpu_mesh.num_indices;
+
         Self {
-            vertex_buffer: vertex_buffer,
-            index_buffer: index_buffer,
-            camera_buffer: camera_buffer,
-            camera_bind_group: camera_bind_group,
-            num_indices: gpu_mesh.num_indices,
-            pipeline: pipeline,
-            queue: queue,
+            pipeline,
+            vertex_buffer,
+            index_buffer,
+            camera_buffer,
+            camera_bind_group,
+            num_indices,
+            queue,
         }
     }
 
+    /// Render the 3D scene by drawing to the `pass` in place
+    ///
+    /// # Arguments
+    /// * `pass` - A surface to draw on, passed down from the UI.
     fn render(&self, pass: &mut wgpu::RenderPass<'_>) {
+        // Write bytes to the GPU
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(
-            0,
-            &self.camera_bind_group,
-            &[],
-        );
+        pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        pass.set_index_buffer(
-            self.index_buffer.slice(..),
-            wgpu::IndexFormat::Uint32,
-        );
+        pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-        pass.draw_indexed(
-            0..self.num_indices,
-            0,
-            0..1,
-        );
+        // TODO: Add a depth buffer so that the triangles aren't drawn in the
+        // wrong order.
+
+        // Do the render
+        pass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
 
-
+    /// Write the new camera matrix to the GPU
+    ///
+    /// # Arguments
+    /// * `camera` - The camera object from the UI
+    /// * `aspect` - The viewport aspect ratio
     pub fn push_camera_to_gpu(&self, camera: &Camera, aspect: f32) {
         let gpu_camera = camera.to_gpu(aspect);
 
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::bytes_of(&gpu_camera),
-        );
-
+        self.queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&gpu_camera));
     }
 }
 
 impl Vertex {
+    // I have absolutely no idea what this is for, something hardware specific
     const ATTRIBS: &[wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
         0 => Float32x3, 1 => Float32x3,
     ];
 
+    /// Describe the layout of the vertices in VRAM?
+    ///
+    /// # Returns
+    /// Something for sure, this is another ``ChatGPT`` function
     fn layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as u64,
+            array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: Self::ATTRIBS,
         }
@@ -223,9 +248,15 @@ impl Vertex {
 }
 
 impl egui_wgpu::CallbackTrait for ViewportCallback {
+    /// Function passed as an arg to egui, which it uses to call the renderer
+    ///
+    /// # Arguments
+    /// * `_info` - Info about the render passed by egui by default
+    /// * `render_pass` - The object to which we will draw the rendered view
+    /// * `_resources` - Also passed by default, no idea what it does
     fn paint(
         &self,
-        info: egui::PaintCallbackInfo,
+        _info: egui::PaintCallbackInfo,
         render_pass: &mut wgpu::RenderPass<'static>,
         _resources: &egui_wgpu::CallbackResources,
     ) {
@@ -234,7 +265,14 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
 }
 
 impl GPUMesh {
-    fn new(stl: stl_io::IndexedMesh) -> Self {
+    /// Constructor for `GPUMesh`
+    ///
+    /// # Arguments
+    /// * `stl` - A mesh loaded from an STL by `stl_io`
+    ///
+    /// # Returns
+    /// An instance of `GPUMesh`
+    fn new(stl: &stl_io::IndexedMesh) -> Self {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
 
@@ -246,27 +284,19 @@ impl GPUMesh {
 
                 vertices.push(Vertex {
                     position: [v[0], v[1], v[2]],
-                    normal: [
-                        face.normal[0],
-                        face.normal[1],
-                        face.normal[2],
-                    ],
+                    normal: [face.normal[0], face.normal[1], face.normal[2]],
                 });
             }
 
-            indices.extend([
-                base,
-                base + 1,
-                base + 2,
-            ]);
+            indices.extend([base, base + 1, base + 2]);
         }
 
         let num_indices: u32 = indices.len() as u32;
 
         Self {
-            vertices: vertices,
-            indices: indices,
-            num_indices: num_indices
+            vertices,
+            indices,
+            num_indices,
         }
     }
 }

@@ -42,6 +42,6 @@ fn main() -> eframe::Result {
         "ColdFusion",
         native_options,
         // This is the call to our ui
-        Box::new(|cc| Ok(Box::new(gui::ui::GUI::new(cc)))),
+        Box::new(|cc| Ok(Box::new(gui::ui::Gui::new(cc)))),
     )
 }

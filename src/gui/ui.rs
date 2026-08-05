@@ -1,29 +1,39 @@
 //! The module responsible for building the flat UI
 
-use crate::renderer::engine::{Renderer, ViewportCallback};
-use crate::renderer::camera::Camera;
 use crate::gui::theme;
+use crate::renderer::camera::Camera;
+use crate::renderer::engine::{Renderer, ViewportCallback};
 use eframe::egui_wgpu;
 use std::sync::Arc;
 use std::time::Instant;
 
 /// All variables that the flat UI should keep track of between draws
-pub struct GUI {
+pub struct Gui {
     /// The renderer object, wrapped in this Arc<> notation so that it stays in
     /// scope here, even if the GPU multithreads. The heavy object is always
-    /// here, and numbered references to it get passed around. I think??
+    /// here, and numbered references to it get passed around. I think?? This
+    /// also makes it permanantly immutable.
     renderer: Arc<Renderer>,
+    /// The camera object. In the future, if we want to support multiple
+    /// viewports, we can turn this into a list of cameras but keep the one
+    /// renderer.
     camera: Camera,
+    /// Information about the performance of the application, for debugging and
+    /// optimization.
     stats: PerformanceStats,
 }
 
+/// Information about application performance
 struct PerformanceStats {
+    /// The last recorded framerate
     fps: f32,
+    /// The time (since epoch) that we started counting frames
     start_time: Instant,
-    frame_count: f32
+    /// The number of frames since we started counting
+    frame_count: f32,
 }
 
-impl GUI {
+impl Gui {
     /// Constructor called once before the first frame
     ///
     /// # Arguments
@@ -31,11 +41,11 @@ impl GUI {
     ///   related to window creation. We use it here to get a reference to the
     ///   GPU object so that we can pass it to the rendering engine later.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+        // Apply custom font and theme
         theme::apply_theme(&cc.egui_ctx);
 
-        // And here we go, getting the GPU object
+        // The renderer needs a reference to the GPU, which was created when we
+        // started drawing the window.
         let render_state = cc.wgpu_render_state.as_ref().expect("couldn't start wgpu");
         let renderer = Renderer::new(
             &render_state.device,
@@ -49,8 +59,8 @@ impl GUI {
             stats: PerformanceStats {
                 fps: 0.0,
                 start_time: Instant::now(),
-                frame_count: 0.0
-            }
+                frame_count: 0.0,
+            },
         }
     }
 }
@@ -58,7 +68,7 @@ impl GUI {
 // Implementing the App trait for the GUI struct. In order for eframe to
 // consider our GUI struct a proper app, it must implement certain methods,
 // kind of like an interface or abstract class.
-impl eframe::App for GUI {
+impl eframe::App for Gui {
     /// UI update function.
     ///
     /// Called each time the UI needs repainting, which may be many times per
@@ -68,15 +78,11 @@ impl eframe::App for GUI {
     /// * `ui` - A mutable pointer to the ui struct from eframe, mutable
     ///   because we design the UI every frame by calling functions that modify
     ///   its state in place.
-    /// * `frame` - Passed by eframe, not sure what this is used for.
+    /// * `_frame` - Passed by eframe, not sure what this is used for.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`,
-        // `CentralPanel`, `Window` or `Area`. For inspiration and more
-        // examples, go to https://emilk.github.io/egui
-
         // Compute framerate
         self.stats.frame_count += 1.0;
-        let dt = (Instant::now() - self.stats.start_time).as_secs_f32();
+        let dt = self.stats.start_time.elapsed().as_secs_f32();
         if dt >= 0.1 {
             self.stats.fps = self.stats.frame_count / dt;
             self.stats.frame_count = 0.0;
@@ -85,25 +91,25 @@ impl eframe::App for GUI {
 
         // Draw the top bar
         egui::Panel::top("top_panel").show(ui, |ui| {
-            // The top panel is often a good place for a menu bar:
             egui::MenuBar::new().ui(ui, |ui| {
                 egui::widgets::global_theme_preference_buttons(ui);
             });
         });
 
+        // Draw the central panel, which includes tools and the viewport
         egui::CentralPanel::default().show(ui, |ui| {
             // Draw the tool menu
             ui.heading("Tools");
 
-            ui.horizontal(|ui| {});
+            ui.horizontal(|_ui| {});
             ui.separator();
 
             let (response, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::drag());
             let aspect = response.rect.width() / response.rect.height();
 
-            // Update the camera
+            // Update the camera with orbit and zoom
             if response.dragged() {
-                self.camera.update_camera(response.drag_delta());
+                self.camera.orbit(response.drag_delta());
             }
 
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
@@ -111,24 +117,22 @@ impl eframe::App for GUI {
                 self.camera.scroll(scroll);
             }
 
+            // Send the newly moved camera to the GPU
             self.renderer.push_camera_to_gpu(&self.camera, aspect);
 
-            // Call the 3D renderer
+            // Call the renderer and ask it to draw the viewport
             painter.add(egui_wgpu::Callback::new_paint_callback(
                 response.rect,
                 ViewportCallback {
-                    renderer: self.renderer.clone(),
+                    renderer: Arc::<Renderer>::clone(&self.renderer),
                 },
             ));
 
+            // Put the debug information in the bottom left
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 egui::warn_if_debug_build(ui);
-                ui.label(format!(
-                    "FPS: {:.0}",
-                    self.stats.fps,
-                ));
+                ui.label(format!("FPS: {:.0}", self.stats.fps,));
             });
         });
     }
 }
-
