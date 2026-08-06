@@ -89,6 +89,9 @@ impl eframe::App for Gui {
             self.stats.start_time = Instant::now();
         }
 
+        // TODO: Recreate the Fusion UI here, with dropdown menus and tab-based
+        // tool organization
+
         // Draw the top bar
         egui::Panel::top("top_panel").show(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
